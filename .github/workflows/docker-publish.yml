@@ -29,7 +29,7 @@ jobs:
       - name: Print latest commit id
         run: echo ${{ github.sha }}
 
-      - name: Check for new commits (Only for scheduled events)
+      - name: Check new commits (only for scheduled events)
         if: ${{ github.event_name == 'schedule' }}
         id: new_commits
         run: test -z $(git rev-list --after="${{ env.TIME_RANGE }}" ${{ github.sha }}) && echo "::set-output name=new_commits::no" || echo "::set-output name=new_commits::yes"
@@ -47,11 +47,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build onedocker image in :rc
+      - name: Build onedocker image in rc
         run: |
           ./build-docker.sh onedocker -t rc
 
-      # tests will be added here once we have one script for all tests
+      # tests will be added here once we have one script for all tests ready
       #- name: Tests name
       #  timeout-minutes: 3
       #  working-directory: ./
@@ -66,20 +66,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Tag Docker image
+      - name: Tag docker image
         run: |
           docker tag ${{ env.LOCAL_IMAGE_NAME }}:rc ${{ env.RC_REGISTRY_IMAGE_NAME }}:${{ github.sha }}
           docker tag ${{ env.LOCAL_IMAGE_NAME }}:rc ${{ env.RC_REGISTRY_IMAGE_NAME }}:rc
 
-      - name: Push image with sha
+      - name: Push image with to rc registry
         run: |
           docker push --all-tags ${{ env.RC_REGISTRY_IMAGE_NAME }}
 
-  # Before E2E tests in place, we require manual approval to tag this image as "latest"
-  push:
+  # Before E2E tests in place, we require manual approval to tag this image as "latest" 
+  prod_push:
     needs: build_image
     runs-on: ubuntu-latest
-    name: Push
+    name: Push to Prod
     environment: 'prod'
     permissions:
       contents: read
@@ -95,7 +95,7 @@ jobs:
          username: ${{ github.actor }}
          password: ${{ secrets.GITHUB_TOKEN }}
 
-     - name: Pull image
+     - name: Pull image from rc registry
        run: |
         docker pull ${{ env.RC_REGISTRY_IMAGE_NAME }}:${{ github.sha }}
 
@@ -103,12 +103,13 @@ jobs:
        id: vars
        run: echo ::set-output name=ref::${GITHUB_REF##*/}
 
-     - name: Tag Image
+     - name: Tag image
        run: |
         docker tag ${{ env.RC_REGISTRY_IMAGE_NAME }}:${{ github.sha }} ${{ env.PROD_REGISTRY_IMAGE_NAME }}:${{ github.sha }}
         docker tag ${{ env.RC_REGISTRY_IMAGE_NAME }}:${{ github.sha }} ${{ env.PROD_REGISTRY_IMAGE_NAME }}:latest
         docker tag ${{ env.RC_REGISTRY_IMAGE_NAME }}:${{ github.sha }} ${{ env.PROD_REGISTRY_IMAGE_NAME }}:${{ steps.vars.outputs.ref }}
 
-     - name: Push Docker image
+     - name: Push docker image to prod registry
        run: |
         docker push --all-tags ${{ env.PROD_REGISTRY_IMAGE_NAME }}
+
